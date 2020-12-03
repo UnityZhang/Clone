@@ -46,6 +46,11 @@ sysinfo.txt
 UnityProject/MergeCredit/Assets/Editor/XUPorter/
 UnityProject/MergeCredit/Assets/Editor/XUPorter.meta
 UnityProject/MergeCredit/Assets/StreamingAssets.meta
+UnityProject/MergeCredit/Assets/3rdParty/
+UnityProject/MergeCredit/Assets/Creditest/
+UnityProject/MergeCredit/Assets/CreditestActivity/
+UnityProject/MergeCredit/Assets/Qarth/
+UnityProject/MergeCredit/Assets/SDKAdapter/
 
 UnityProject/MergeCredit/Assets/Plugins/Android/animated-vector-*
 UnityProject/MergeCredit/Assets/Plugins/Android/cardview-*
