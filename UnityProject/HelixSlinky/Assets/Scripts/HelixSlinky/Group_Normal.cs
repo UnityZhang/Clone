@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class ObstacleGroup : MonoBehaviour
+public class Group_Normal : ABoardGroup
 {
     public Transform BoardsTran;
     ABoard[] m_boards;
 
     Renderer[] m_renderers;
+
+    public MeshFilter[] MeshFilters;
 
     AProp[] m_Props;
 
@@ -16,10 +18,11 @@ public class ObstacleGroup : MonoBehaviour
     {
         m_boards = BoardsTran.GetComponentsInChildren<ABoard>();
         m_renderers = BoardsTran.GetComponentsInChildren<Renderer>();
+        MeshFilters = BoardsTran.GetComponentsInChildren<MeshFilter>();
         m_Props = GetComponentsInChildren<AProp>();
     }
 
-    public bool HaveBoard(Transform tran)
+    public override bool HaveBoard(Transform tran)
     {
         foreach (var item in m_boards)
         {
@@ -29,7 +32,7 @@ public class ObstacleGroup : MonoBehaviour
         return false;
     }
 
-    public void PUpdate(float y)
+    public override void PUpdate(float y)
     {
         if (m_IsBroken)
             return;
@@ -38,7 +41,7 @@ public class ObstacleGroup : MonoBehaviour
             Broken();
         }
     }
-    public void Broken()
+    public override void Broken()
     {
         foreach (var item in m_boards)
         {
@@ -52,11 +55,22 @@ public class ObstacleGroup : MonoBehaviour
         }
     }
 
-    public void ChangeMat(Material mat)
+    public override void ChangeMat(Material mat)
     {
         foreach (var item in m_renderers)
         {
             item.sharedMaterial = mat;
         }
     }
+}
+
+public abstract class ABoardGroup : MonoBehaviour
+{
+    public abstract void ChangeMat(Material mat);
+
+    public abstract void Broken();
+
+    public abstract void PUpdate(float y);
+
+    public abstract bool HaveBoard(Transform tran);
 }

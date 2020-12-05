@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 
-public class NormalBoard : ABoard
+public class Board_Normal : ABoard
 {
     public override void Broken()
     {

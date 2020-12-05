@@ -14,7 +14,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
 
     public Material mat;
     public float m_WaveHeight = 1.2f;
-    public float TargetDistance = 3;
+    public float CameraTargetDistance = 3;
 
     public int InitSlinkyCount;
     public List<Slinky> SlinkyList;
@@ -28,6 +28,8 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
     public float GoDownSpeed = 80f;
     [Header("最大下落速度")]
     public float MaxSpeed = 100;
+    [Header("下落达到最大速度时间")]
+    public float FallToMaxSpeedTime = 1;
     [Header("加速下落速率")]
     [Range(0.3f, 2f)]
     public float AccelerateRate = 1.1f;
@@ -42,7 +44,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
     public AnimationCurve BounceCurve;
 
 
-    ObstacleGroup[] m_ObstacleGroups;
+    ABoardGroup[] m_ObstacleGroups;
     [HideInInspector]
     public bool m_CanDamageNextBoard;//撞掉下一个板
     public float MaxSpeedStateTime { get; private set; }//无敌时间
@@ -76,7 +78,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
         }
         SetAllSlinkyColor();
         StartFall();
-        m_ObstacleGroups = ObstacleRoot.GetComponentsInChildren<ObstacleGroup>();
+        m_ObstacleGroups = ObstacleRoot.GetComponentsInChildren<ABoardGroup>();
     }
     void Start()
     {
@@ -130,6 +132,12 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
         if (SlinkyList.Count - count < 5)
         {
             Log.e("游戏失败");
+            foreach (var item in SlinkyList)
+            {
+                EffectManager.S.PlayEffect(EffectName.RingLoss, item.transform.position);
+                item.gameObject.SetActive(false);
+            }
+            H_GameCtrl.S.StartGame = false;
             return;
         }
         for (int i = 0; i < count; i++)
@@ -204,6 +212,8 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
     
     void Update()
     {
+        if (!H_GameCtrl.S.StartGame)
+            return;
         //更新圆环位置
         if (IsDown)
         {
@@ -219,6 +229,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
         {
             foreach (var s in m_WaitForRecycleSlinkyList)
             {
+                EffectManager.S.PlayEffect(EffectName.RingLoss, s.transform.position);
                 SlinkyList.Remove(s);
                 RecycleSlinky(s);
             }
@@ -260,17 +271,27 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
     {
         if (m_CanDamageNextBoard)
         {
-            foreach (var item in m_ObstacleGroups)
+            VictoryBoard board = hit.GetComponent<VictoryBoard>();
+            if (null == board)
             {
-                if (item.HaveBoard(hit))
+                foreach (var item in m_ObstacleGroups)
                 {
-                    item.Broken();
-                    break;
+                    if (item.HaveBoard(hit))
+                    {
+                        item.Broken();
+                        break;
+                    }
                 }
+                m_CanDamageNextBoard = false;
+                m_FallTime = 0;
+                HelixEffectMgr.S.StopMaxSpeedFall();
             }
-            m_CanDamageNextBoard = false;
-            m_FallTime = 0;
-            HelixEffectMgr.S.StopMaxSpeedFall();
+            else
+            {
+                board.Trigger();
+                IsDown = false;
+                SlinkysTrans.position = stopPos;
+            }
         }
         else
         {
@@ -289,7 +310,16 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
             {
                 IsDown = false;
                 SlinkysTrans.position = stopPos;
-                StartUp();
+
+                AProp prop = hit.GetComponent<AProp>();
+                if (null == prop)
+                    StartUp();
+                else
+                {
+                    prop.Trigger();
+                    if (prop is Board_Obstacle)
+                        StartUp();
+                }
             }
         }
     }
@@ -310,7 +340,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
         else
         {
             test = Mathf.Clamp(GoDownSpeed * m_FallTime * AccelerateRate, 0, MaxSpeed);
-            if (test == MaxSpeed && !m_CanDamageNextBoard)//达到最大速度
+            if (m_FallTime >= FallToMaxSpeedTime && !m_CanDamageNextBoard)//达到最大速度
                 FallToMaxSpeed();
         }
 
@@ -330,10 +360,10 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
                 RaycastHit t = hitinfo1.transform.gameObject.layer == 12 ? hitinfo1 : hitinfo2;
                 HitBoard(new Vector3(SlinkysTrans.position.x, t.point.y, SlinkysTrans.position.z), t.transform);
             }
-            else
-            {
+            //else
+            //{
                 //hitinfo1.transform.GetComponent<IProp>().Trigger();
-            }
+            //}
         }
         else if (isCollider1 || isCollider2)
         {
@@ -343,10 +373,10 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
                 {
                     HitBoard(new Vector3(SlinkysTrans.position.x, hitinfo1.point.y, SlinkysTrans.position.z), hitinfo1.transform);
                 }
-                else if (hitinfo1.transform.gameObject.layer == 11)
-                {
+                //else if (hitinfo1.transform.gameObject.layer == 11)
+                //{
                     //hitinfo1.transform.GetComponent<IProp>().Trigger();
-                }
+                //}
             }
             else
             {
@@ -354,22 +384,34 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
                 {
                     HitBoard(new Vector3(SlinkysTrans.position.x, hitinfo2.point.y, SlinkysTrans.position.z), hitinfo2.transform);
                 }
-                else if (hitinfo2.transform.gameObject.layer == 11)
-                {
+                //else if (hitinfo2.transform.gameObject.layer == 11)
+                //{
                     //hitinfo2.transform.GetComponent<IProp>().Trigger();
-                }
+                //}
             }
         }
         if (!IsDown)
         {
-            Material mat1 = ChangeBoardMat(isCollider1 ? hitinfo1.transform : hitinfo2.transform);
-            Vector3 hitcenter = isCollider1?hitinfo1.point - new Vector3(m_RayPointOffset, 0, 0): hitinfo2.point + new Vector3(m_RayPointOffset, 0, 0);
-            Vector4 point = new Vector4(hitcenter.x, hitcenter.y, hitcenter.z, 0);
+            //Vector3 hitcenter = isCollider1 ? hitinfo1.point - new Vector3(m_RayPointOffset, 0, 0) : hitinfo2.point + new Vector3(m_RayPointOffset, 0, 0);
+            //foreach (var item in m_ObstacleGroups)
+            //{
+            //    if (item.HaveBoard(isCollider1 ? hitinfo1.transform : hitinfo2.transform))
+            //    {
+            //        Group_Normal group = item as Group_Normal;
+            //        foreach (var item1 in group.MeshFilters)
+            //            StartCoroutine(QTanEffect(hitcenter, item1));
+            //        break;
+            //    }
+            //}
 
-            mat.SetFloat("_PointTime", Time.time);
-            mat.SetVector("hitPoint", point);
-            mat.SetFloat("_WaveScal", m_WaveHeight);
-            StartCoroutine(BoardBounce(mat1));
+            //Vector3 hitcenter = isCollider1?hitinfo1.point - new Vector3(m_RayPointOffset, 0, 0): hitinfo2.point + new Vector3(m_RayPointOffset, 0, 0);
+            //Material mat1 = ChangeBoardMat(isCollider1 ? hitinfo1.transform : hitinfo2.transform);
+            //Vector4 point = new Vector4(hitcenter.x, hitcenter.y, hitcenter.z, 0);
+
+            //mat.SetFloat("_PointTime", Time.time);
+            //mat.SetVector("hitPoint", point);
+            //mat.SetFloat("_WaveScal", m_WaveHeight);
+            //StartCoroutine(BoardBounce(mat1));
 
             //EffectManager.S.PlayEffect(EffectName.OnTheGround, hitcenter + new Vector3(0, 0.05f, 0));
         }
@@ -378,7 +420,7 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
     }
     void ChangeCameraTargetPos()
     {
-        float value = SlinkyList[SlinkyList.Count - 1].transform.position.y + TargetDistance;
+        float value = SlinkyList[SlinkyList.Count - 1].transform.position.y + CameraTargetDistance;
         if (value < CameraTarget.position.y)
         {
             CameraTarget.position = new Vector3(CameraTarget.position.x, value, CameraTarget.position.z);
@@ -415,5 +457,70 @@ public class PlayerSpring : TMonoSingleton<PlayerSpring>
         }
     }
 
-    
+    public float radius = 1.0f;
+    public float height = 1.0f;
+    public float aniIntervalPlayTime = 0.3f;
+
+    private IEnumerator QTanEffect(Vector3 hitPoint, MeshFilter goMeshFilter)
+    {
+        yield return null;
+
+        Vector3[] oldVertexList = goMeshFilter.mesh.vertices;
+        Vector3[] newVertexList = goMeshFilter.mesh.vertices;
+
+        for (int j = 0; j < oldVertexList.Length; j++)
+        {
+            Vector3 vertexPos = oldVertexList[j];
+
+            Vector3 vertexWorldPos = goMeshFilter.transform.TransformPoint(vertexPos);
+
+            float dis = Mathf.Abs(hitPoint.x - vertexWorldPos.x);
+
+            if (dis <= radius)
+            {
+                float angle = (radius - dis) / radius * 90.0f;
+
+                float rad = angle * Mathf.PI / 180.0f;
+
+                float offset = Mathf.Sin(rad) * height;
+
+                vertexPos.z -= offset;
+            }
+
+            newVertexList[j] = vertexPos;
+
+        }
+        goMeshFilter.mesh.vertices = newVertexList;
+
+        goMeshFilter.mesh.RecalculateNormals();
+
+        yield return new WaitForSeconds(aniIntervalPlayTime);
+
+        for (int j = 0; j < oldVertexList.Length; j++)
+        {
+            Vector3 vertexPos = newVertexList[j];
+
+            Vector3 vertexWorldPos = goMeshFilter.transform.TransformPoint(vertexPos);
+
+            float dis = Mathf.Abs(hitPoint.x - vertexWorldPos.x);
+
+            if (dis <= radius)
+            {
+                float angle = (radius - dis) / radius * 90.0f;
+
+                float rad = angle * Mathf.PI / 180.0f;
+
+                float offset = Mathf.Sin(rad) * height;
+
+                //vertexPos.z += offset;.
+                vertexPos.z = oldVertexList[j].z;
+            }
+
+            newVertexList[j] = vertexPos;
+
+        }
+        goMeshFilter.mesh.vertices = newVertexList;
+
+        goMeshFilter.mesh.RecalculateNormals();
+    }
 }
